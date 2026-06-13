@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 280" fill="none">
+  <rect width="300" height="280" fill="#eff6ff"/>
+  <path d="M80 60 L220 60 L205 220 Q203 230 190 230 L110 230 Q97 230 95 220 Z" fill="#e0f2fe" stroke="#3b82f6" stroke-width="3"/>
+  <rect x="90" y="85" width="120" height="75" rx="4" fill="#bfdbfe" opacity="0.6"/>
+  <text x="150" y="130" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#64748b">strefa nadruku</text>
+  <text x="150" y="258" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="600" fill="#1d4ed8">Kubek plastikowy</text>
+</svg>

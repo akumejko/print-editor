@@ -36,24 +36,48 @@ src/
     editor/[productId]/page.tsx     # Editor page — server component, validates productId
     api/
       save/route.ts                 # POST — receives base64 PNG, saves file + DB row, returns { id }
-      download/[id]/route.ts        # GET — streams PNG by project ID (secret URL, no auth)
+      download/[id]/route.ts        # GET — streams PNG by download_token (UUID)
+      admin/[displayId]/route.ts    # GET ?key=ADMIN_SECRET — redirects to download URL
   components/
-    canvas/CanvasEditor.tsx         # Main Fabric.js editor (client component)
+    canvas/
+      CanvasEditor.tsx              # Slim orchestrator (~120 lines) — wires hooks + panels
+      CanvasToolbar.tsx             # Undo/redo/save toolbar
+      ProjectIdBanner.tsx           # Green success banner shown after save
+      types.ts                      # Shared: ToolSection, SelectedObjState
+      hooks/
+        useCanvasHistory.ts         # Undo/redo stack (historyRef + loadFromJSON)
+        useFabricCanvas.ts          # Canvas init, events, object actions (add/delete/update)
+        useSaveProject.ts           # POST /api/save + clipboard copy
+      panels/
+        TextToolPanel.tsx           # Left panel: text form (local state, calls onAdd)
+        AssetsPanel.tsx             # Left panel: preset shape grid
+        UploadPanel.tsx             # Left panel: file upload dropzone
+        PropertiesPanel.tsx         # Right panel: angle/opacity/font/bold/italic
     ui/                             # shadcn components: button, input, label, card, badge, select
   config/
     products.ts                     # Hardcoded product list + Product interface + getProduct()
-    assets.ts                       # PRESET_ASSETS (12 CC0 SVGs) + FONTS list
+    assets.ts                       # PRESET_ASSETS (20 CC0 SVGs) + FONTS list (14 fonts)
   lib/
-    db.ts                           # better-sqlite3 helpers: saveProject(), getProjectPath()
+    db.ts                           # better-sqlite3 helpers: saveProject(), getProjectPath(), getDownloadToken()
+    ratelimit.ts                    # In-memory IP rate limiter (default 10 saves/day, SAVE_RATE_LIMIT env)
     utils.ts                        # shadcn cn() utility
+  test/
+    setup.ts                        # Vitest global setup (@testing-library/jest-dom)
 
 public/
   products/                         # SVG product mockup placeholders (mug-ceramic, cup-plastic, bottle-sport)
-  assets/                           # 12 CC0 SVG shapes (star, heart, crown, lightning, paw, sun, flower, diamond, arrow, shield, wave, circle-dots)
+  assets/                           # 20 CC0 SVG shapes (star, heart, crown, lightning, paw, sun, flower,
+                                    #   diamond, arrow, shield, wave, circle-dots, moon, trophy, anchor,
+                                    #   music, snowflake, tree, peace, butterfly)
 
 saved_projects/                     # Runtime: saved PNG files (git-ignored)
 projects.db                         # Runtime: SQLite database (git-ignored)
-next.config.ts                      # serverExternalPackages: sharp, better-sqlite3
+next.config.ts                      # output: standalone, serverExternalPackages: sharp, better-sqlite3
+Dockerfile                          # Multi-stage build; node:20-slim + python3/make/g++ for better-sqlite3
+fly.toml                            # Fly.io config: app=print-editor, region=arn, port=8080, 256MB VM
+scripts/
+  clear-data.sh                     # Clears /data/projects.db and /data/saved_projects/ on Fly.io via SSH
+vitest.config.ts                    # Vitest + @vitejs/plugin-react, jsdom, @ alias
 ```
 
 ## Products (hardcoded in `src/config/products.ts`)
@@ -110,11 +134,20 @@ This redirects straight to the PNG download.
 ## Canvas Editor Architecture (`src/components/canvas/CanvasEditor.tsx`)
 
 - **Client component** (`"use client"`)
-- Fabric.js canvas initialised once in `useEffect`; cleaned up on unmount with `fc.dispose()`
+- Slim orchestrator (~120 lines) — wires three hooks and six panel components
 - Three collapsible tool sections in the left panel: **Tekst**, **Kształty i grafiki**, **Własna grafika**
 - Right panel appears only when an object is selected (angle, opacity; font/size/color/bold/italic for text)
 - `Delete` / `Backspace` key removes selected object (guards against firing inside `<input>`)
 - Save flow: `canvas.toDataURL({ multiplier })` → `POST /api/save` → show project ID in green banner
+- Exported PNG has **transparent background** — no `backgroundColor` set on the Fabric canvas; white is CSS-only on the wrapper div
+
+### Hook responsibilities
+- `useCanvasHistory` — undo/redo stack via `fc.toJSON()` / `fc.loadFromJSON()`; exposes `saveHistory`, `undo`, `redo`, `canUndo`, `canRedo`, `isRestoringRef`
+- `useFabricCanvas` — canvas init + all object actions (`addText`, `addPresetAsset`, `handleUpload`, `deleteSelected`, `updateSelected`); uses a `cbRef` pattern so callbacks never cause the canvas init effect to re-run
+- `useSaveProject` — `POST /api/save` call + clipboard copy
+
+### Critical: cbRef pattern in `useFabricCanvas`
+All mutable callbacks (`saveHistory`, `undo`, `redo`, `onSelectionChange`) are stored in a `cbRef` that is updated on every render **without** being in the canvas init effect's dependency array. This prevents the canvas from being destroyed and re-created whenever state changes (e.g. `canUndo` toggling). The init effect only depends on `[product, fabricRef, syncSelection]`.
 
 ### Fabric.js v7 gotchas
 - Import as `import * as fabric from "fabric"` (no default export)
@@ -128,16 +161,34 @@ This redirects straight to the PNG download.
 
 ## Google Fonts
 
-Loaded via `<link>` in `src/app/layout.tsx` `<head>`. Families available in the editor: Inter (system), Roboto, Playfair Display, Oswald, Dancing Script, Montserrat, Lato, Raleway. To add more: extend the `<link>` href and the `FONTS` array in `src/config/assets.ts`.
+Loaded via `<link>` in `src/app/layout.tsx` `<head>`. 14 families available: Inter (system), Roboto, Playfair Display, Oswald, Dancing Script, Montserrat, Lato, Raleway, Pacifico, Bebas Neue, Nunito, Lobster, Merriweather, Ubuntu. To add more: extend the `<link>` href and the `FONTS` array in `src/config/assets.ts`.
 
-## Roadmap (remaining from plan)
+## Roadmap (remaining)
 
-Step 5 — Polish (not yet implemented):
-- Undo/redo (Fabric.js `canvas.undo()` / history via custom stack)
 - Keyboard shortcut hints
 - Mobile-friendly toolbar (currently collapses on `lg:` breakpoint)
 - 404 page for expired/unknown project IDs on `/api/download/[id]`
 - Replace SVG product mockups with real product photography (drop `.webp` files into `public/products/` — `mockupImage` field already points to `.webp`)
+
+## Testing
+
+Vitest + React Testing Library. 20 tests across 4 files covering `useCanvasHistory`, `useSaveProject`, `ProjectIdBanner`, and `PropertiesPanel`.
+
+```bash
+npm test          # Run tests (watch mode)
+npm test -- --run # Run tests once
+```
+
+## Deployment (Fly.io)
+
+App: `print-editor`, region: `arn` (Stockholm), port: 8080, 256MB shared VM.
+Persistent volume mounted at `/data` — database and saved PNGs stored there.
+`DATA_DIR` env var points the app at `/data` in production.
+`ADMIN_SECRET` and `SAVE_RATE_LIMIT` configured as Fly.io secrets.
+
+```bash
+fly deploy        # Deploy from local (requires flyctl)
+```
 
 ## Common Commands
 

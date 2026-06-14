@@ -4,14 +4,14 @@ primary_region = "fra"
 [build]
 
 [env]
-  PORT = "3000"
+  PORT = "8080"
 
 [[mounts]]
   source = "data"
   destination = "/data"
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true

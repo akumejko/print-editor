@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { saveProject } from "@/lib/db";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      req.headers.get("x-real-ip") ??
+      "unknown";
+
+    const { allowed } = checkRateLimit(ip);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Dzienny limit projektów został osiągnięty. Spróbuj jutro." },
+        { status: 429 }
+      );
+    }
+
     const { dataUrl, productId } = await req.json();
 
     if (!dataUrl || !productId) {

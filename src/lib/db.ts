@@ -2,8 +2,9 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-const DB_PATH = path.join(process.cwd(), "projects.db");
-const PROJECTS_DIR = path.join(process.cwd(), "saved_projects");
+const DATA_DIR = process.env.DATA_DIR ?? process.cwd();
+const DB_PATH = path.join(DATA_DIR, "projects.db");
+const PROJECTS_DIR = path.join(DATA_DIR, "saved_projects");
 
 function getDb() {
   const db = new Database(DB_PATH);

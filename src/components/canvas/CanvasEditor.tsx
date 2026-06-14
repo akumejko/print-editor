@@ -340,11 +340,11 @@ export function CanvasEditor({ product }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataUrl, productId: product.id }),
       });
-      if (!res.ok) throw new Error("Błąd zapisu");
-      const { id } = await res.json();
-      setProjectId(id);
-    } catch {
-      alert("Nie udało się zapisać projektu. Spróbuj ponownie.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Błąd zapisu");
+      setProjectId(data.id);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Nie udało się zapisać projektu. Spróbuj ponownie.");
     } finally {
       setSaving(false);
     }

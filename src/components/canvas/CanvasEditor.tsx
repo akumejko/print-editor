@@ -161,7 +161,6 @@ export function CanvasEditor({ product }: Props) {
     const fc = new fabric.Canvas(canvasElRef.current, {
       width: product.canvasWidth,
       height: product.canvasHeight,
-      backgroundColor: "#ffffff",
       preserveObjectStacking: true,
       selection: true,
     });
@@ -542,7 +541,7 @@ export function CanvasEditor({ product }: Props) {
           {/* Responsive canvas wrapper: measures available width, scales canvas down on mobile */}
           <div ref={canvasWrapperRef} className="w-full">
             <div
-              className="border border-slate-200 rounded-lg overflow-hidden origin-top-left"
+              className="border border-slate-200 rounded-lg overflow-hidden origin-top-left bg-white"
               style={{
                 width: product.canvasWidth,
                 height: product.canvasHeight,

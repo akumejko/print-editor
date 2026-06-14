@@ -27,8 +27,9 @@ export async function GET(req: NextRequest, { params }: Props) {
     );
   }
 
-  const host = req.nextUrl.origin;
-  const downloadUrl = `${host}/api/download/${token}`;
+  const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+  const downloadUrl = `${proto}://${host}/api/download/${token}`;
 
   // Redirect straight to the file for convenience
   return NextResponse.redirect(downloadUrl);

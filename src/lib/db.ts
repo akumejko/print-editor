@@ -56,6 +56,34 @@ export function getProjectPathByToken(token: string): string | null {
   return row?.file_path ?? null;
 }
 
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/** Deletes projects older than 7 days — both DB rows and PNG files on disk. */
+export function deleteExpiredProjects(): void {
+  const db = getDb();
+  const cutoff = Date.now() - RETENTION_MS;
+  const expired = db
+    .prepare("SELECT id, file_path FROM projects WHERE created_at < ?")
+    .all(cutoff) as { id: string; file_path: string }[];
+
+  for (const row of expired) {
+    try {
+      if (fs.existsSync(row.file_path)) fs.unlinkSync(row.file_path);
+    } catch (err) {
+      console.error(`Failed to delete file for project ${row.id}:`, err);
+    }
+  }
+
+  if (expired.length > 0) {
+    db.prepare(
+      `DELETE FROM projects WHERE id IN (${expired.map(() => "?").join(",")})`
+    ).run(expired.map((r) => r.id));
+    console.log(`Cleaned up ${expired.length} expired project(s).`);
+  }
+
+  db.close();
+}
+
 /** Used by the admin lookup route — looks up by the customer-facing display ID */
 export function getDownloadToken(displayId: string): string | null {
   const db = getDb();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { saveProject } from "@/lib/db";
+import { saveProject, deleteExpiredProjects } from "@/lib/db";
 import { checkRateLimit } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     const downloadToken = randomUUID();
 
     saveProject(id, downloadToken, productId, buffer);
+
+    // Piggyback cleanup — runs async, never blocks the response
+    setImmediate(() => {
+      try { deleteExpiredProjects(); } catch (err) { console.error("Cleanup error:", err); }
+    });
 
     return NextResponse.json({ id });
   } catch (err) {
